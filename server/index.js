@@ -196,9 +196,6 @@ function reconnectToSession(ws, sessionId) {
     foundSession.currentWs = ws;
     foundSession.bufferTimer = null; // Reset buffer timer
     
-    // Set up the same event handlers as a new session
-    setupSessionEventHandlers(ws, foundSession);
-    
     // Send reconnection success first
     ws.send(JSON.stringify({ 
       type: 'session-reconnected', 
@@ -206,12 +203,27 @@ function reconnectToSession(ws, sessionId) {
       workingDir: foundSession.workingDir
     }));
     
-    // No need to restore buffer from server - let frontend handle terminal state
-    console.log(`Session ${sessionId} reconnected - frontend will manage terminal state`);
+    // SIMPLE APPROACH: Clear terminal and refresh current status instead of complex buffer management
+    console.log(`Session ${sessionId} reconnected - clearing terminal and refreshing current status`);
+    
+    // Set up event handlers first
+    setupSessionEventHandlers(ws, foundSession);
+    
+    // Send a clear terminal signal to frontend
     ws.send(JSON.stringify({ 
-      type: 'buffer-restore', 
-      data: '' // Empty - let frontend keep its own state
+      type: 'terminal-refresh',
+      sessionId: sessionId
     }));
+    
+    // Send a simple refresh command to the PTY to show current status
+    // This will naturally display the current Claude Code state
+    setTimeout(() => {
+      if (foundSession.ptyProcess && !foundSession.ptyProcess.killed) {
+        // Send Ctrl+C followed by Enter to refresh the prompt cleanly
+        foundSession.ptyProcess.write('\x03\r');
+        console.log(`Session ${sessionId} terminal refreshed with current status`);
+      }
+    }, 200); // Small delay to ensure terminal is ready
     
     console.log(`Session ${sessionId} reconnected successfully`);
     
@@ -346,6 +358,15 @@ function setupSessionEventHandlers(ws, session) {
     if (session.currentWs && session.currentWs.readyState === 1) { // WebSocket.OPEN
       // Add to buffer
       outputBuffer += output;
+      
+      // CRITICAL: Also update the session's persistent terminal buffer
+      session.terminalBuffer += output;
+      session.lastBufferUpdate = Date.now();
+      
+      // Keep buffer size manageable (last 50KB of output)
+      if (session.terminalBuffer.length > 50000) {
+        session.terminalBuffer = session.terminalBuffer.slice(-50000);
+      }
       
       // Clear existing timer and set new one
       if (bufferTimer) {

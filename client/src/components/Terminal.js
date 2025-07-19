@@ -206,16 +206,23 @@ const Terminal = ({ messages, onInput, onResize }) => {
                 await new Promise(resolve => setTimeout(resolve, 10));
                 break;
                 
+              case 'terminal-refresh':
+                console.log('Terminal refresh requested for session:', message.sessionId);
+                // Simple and clean: just clear the terminal and let fresh output populate it
+                xtermRef.current.reset();
+                xtermRef.current.clear();
+                console.log('Terminal cleared for fresh session state');
+                // The server will send a refresh command to show current status
+                break;
+                
               case 'buffer-restore':
                 console.log('Restoring session buffer:', message.data ? message.data.length + ' bytes' : 'empty');
-                // Only restore if there's actual buffer data
+                // Only restore if there's actual buffer data (for new sessions)
                 if (message.data && message.data.length > 0) {
-                  // Clear terminal completely and restore session buffer
                   xtermRef.current.reset();
                   xtermRef.current.clear();
-                  // Write the buffer data - it already contains proper control sequences
                   xtermRef.current.write(message.data);
-                  await new Promise(resolve => setTimeout(resolve, 50)); // Small delay for processing
+                  await new Promise(resolve => setTimeout(resolve, 50));
                 } else {
                   console.log('No buffer to restore - keeping current terminal state');
                 }
