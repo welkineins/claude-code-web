@@ -4,7 +4,7 @@ import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import 'xterm/css/xterm.css';
 
-const Terminal = ({ messages, onInput, onResize }) => {
+const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
@@ -25,10 +25,12 @@ const Terminal = ({ messages, onInput, onResize }) => {
       // Calculate initial terminal size based on container
       const container = terminalRef.current;
       const containerRect = container.getBoundingClientRect();
-      const charWidth = 9; // Approximate character width
-      const charHeight = 17; // Approximate character height
-      const initialCols = Math.floor((containerRect.width - 16) / charWidth) || 80;
-      const initialRows = Math.floor((containerRect.height - 16) / charHeight) || 24;
+      // Adjust character dimensions for better fit
+      const charWidth = window.innerWidth <= 768 ? 8 : 9; // Smaller on mobile
+      const charHeight = window.innerWidth <= 768 ? 15 : 17;
+      const padding = window.innerWidth <= 768 ? 8 : 16; // Account for padding
+      const initialCols = Math.floor((containerRect.width - padding) / charWidth) || 80;
+      const initialRows = Math.floor((containerRect.height - padding) / charHeight) || 24;
 
       const xterm = new XTerm({
         theme: {
@@ -88,9 +90,11 @@ const Terminal = ({ messages, onInput, onResize }) => {
 
         // Handle input from terminal
         xterm.onData((data) => {
-          console.log('🔴 FRONTEND INPUT:', JSON.stringify(data));
-          if (onInput) {
+          console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
+          if (onInput && currentSessionId) {
             onInput(data);
+          } else {
+            console.warn('Terminal input ignored - no active session or onInput callback');
           }
         });
         
@@ -99,9 +103,11 @@ const Terminal = ({ messages, onInput, onResize }) => {
 
         // Handle resize
         xterm.onResize(({ cols, rows }) => {
-          console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows);
-          if (onResize) {
+          console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
+          if (onResize && currentSessionId) {
             onResize(cols, rows);
+          } else {
+            console.warn('Terminal resize ignored - no active session or onResize callback');
           }
         });
 
@@ -113,8 +119,8 @@ const Terminal = ({ messages, onInput, onResize }) => {
               setIsInitialized(true);
               
               // Send initial resize to server to sync dimensions
-              console.log('🔴 INITIAL FIT RESIZE:', xterm.cols, 'x', xterm.rows);
-              if (onResize) {
+              console.log('🔴 INITIAL FIT RESIZE:', xterm.cols, 'x', xterm.rows, 'Session ID:', currentSessionId);
+              if (onResize && currentSessionId) {
                 onResize(xterm.cols, xterm.rows);
               }
             } catch (error) {
@@ -128,8 +134,8 @@ const Terminal = ({ messages, onInput, onResize }) => {
           if (mounted && fitAddon && xtermRef.current && xtermRef.current.element) {
             try {
               fitAddon.fit();
-              console.log('🔴 SYNC TIMER RESIZE:', xtermRef.current.cols, 'x', xtermRef.current.rows);
-              if (onResize) {
+              console.log('🔴 SYNC TIMER RESIZE:', xtermRef.current.cols, 'x', xtermRef.current.rows, 'Session ID:', currentSessionId);
+              if (onResize && currentSessionId) {
                 onResize(xtermRef.current.cols, xtermRef.current.rows);
               }
             } catch (error) {
@@ -145,8 +151,8 @@ const Terminal = ({ messages, onInput, onResize }) => {
               fitAddonRef.current.fit();
               
               // Send new size to server
-              console.log('🔴 WINDOW RESIZE:', xtermRef.current.cols, 'x', xtermRef.current.rows);
-              if (onResize) {
+              console.log('🔴 WINDOW RESIZE:', xtermRef.current.cols, 'x', xtermRef.current.rows, 'Session ID:', currentSessionId);
+              if (onResize && currentSessionId) {
                 onResize(xtermRef.current.cols, xtermRef.current.rows);
               }
             } catch (error) {
@@ -262,6 +268,36 @@ const Terminal = ({ messages, onInput, onResize }) => {
       processMessages();
     }
   }, [messages]);
+
+  // Set up input and resize handlers when currentSessionId changes
+  useEffect(() => {
+    if (xtermRef.current && currentSessionId) {
+      console.log('Setting up terminal handlers for session:', currentSessionId);
+      
+      // Remove existing handlers
+      xtermRef.current.onData(() => {});
+      xtermRef.current.onResize(() => {});
+      
+      // Set up new handlers with current session ID
+      xtermRef.current.onData((data) => {
+        console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
+        if (onInput && currentSessionId) {
+          onInput(data);
+        } else {
+          console.warn('Terminal input ignored - no active session or onInput callback');
+        }
+      });
+      
+      xtermRef.current.onResize(({ cols, rows }) => {
+        console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
+        if (onResize && currentSessionId) {
+          onResize(cols, rows);
+        } else {
+          console.warn('Terminal resize ignored - no active session or onResize callback');
+        }
+      });
+    }
+  }, [currentSessionId, onInput, onResize]);
 
   return <div ref={terminalRef} className="terminal-wrapper" />;
 };

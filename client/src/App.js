@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Terminal from './components/Terminal';
 import PathInput from './components/PathInput';
 import SessionList from './components/SessionList';
@@ -70,7 +70,9 @@ function App() {
         
         // Handle session started
         if (data.type === 'session-started') {
+          console.log('Setting currentSessionId to:', data.sessionId);
           setCurrentSessionId(data.sessionId);
+          return; // Don't add session-started to messages array
         }
         
         setMessages(prev => [...prev, data]);
@@ -154,7 +156,8 @@ function App() {
     setShowMobileMenu(!showMobileMenu);
   };
 
-  const sendInput = (input) => {
+  const sendInput = useCallback((input) => {
+    console.log('sendInput called with currentSessionId:', currentSessionId, 'input:', JSON.stringify(input));
     if (!currentSessionId) {
       console.warn('No active session - ignoring input:', JSON.stringify(input));
       return;
@@ -170,9 +173,9 @@ function App() {
     } else {
       console.error('WebSocket not connected for input');
     }
-  };
+  }, [currentSessionId]);
 
-  const sendResize = (cols, rows) => {
+  const sendResize = useCallback((cols, rows) => {
     if (!currentSessionId) {
       console.warn('No active session - ignoring resize:', cols, 'x', rows);
       return;
@@ -189,20 +192,20 @@ function App() {
     } else {
       console.error('WebSocket not connected for resize');
     }
-  };
+  }, [currentSessionId]);
 
   return (
     <div className="App">
       <header className="App-header">
         <h1>Claude Code Web</h1>
         <div className="header-controls desktop">
-          <button onClick={showSessions} className="header-button" title="Active Sessions">
-            <span className="button-text">Active Sessions</span>
-            <span className="button-icon">📋</span>
-          </button>
           <button onClick={showNewSession} className="header-button" title="New Session">
             <span className="button-text">New Session</span>
             <span className="button-icon">➕</span>
+          </button>
+          <button onClick={showSessions} className="header-button" title="Active Sessions">
+            <span className="button-text">Active Sessions</span>
+            <span className="button-icon">📋</span>
           </button>
           <div className="connection-status" title={isConnected ? 'Connected' : 'Disconnected'}>
             <span className="status-text">Status: {isConnected ? 'Connected' : 'Disconnected'}</span>
@@ -222,13 +225,13 @@ function App() {
                 <button className="close-menu" onClick={toggleMobileMenu}>✕</button>
               </div>
               <div className="mobile-menu-items">
-                <button onClick={showSessions} className="mobile-menu-item">
-                  <span className="menu-item-icon">📋</span>
-                  <span className="menu-item-text">Active Sessions</span>
-                </button>
                 <button onClick={showNewSession} className="mobile-menu-item">
                   <span className="menu-item-icon">➕</span>
                   <span className="menu-item-text">New Session</span>
+                </button>
+                <button onClick={showSessions} className="mobile-menu-item">
+                  <span className="menu-item-icon">📋</span>
+                  <span className="menu-item-text">Active Sessions</span>
                 </button>
                 <div className="mobile-menu-status">
                   <span className="menu-item-icon">{isConnected ? '🟢' : '🔴'}</span>
@@ -257,6 +260,7 @@ function App() {
               messages={messages}
               onInput={sendInput}
               onResize={sendResize}
+              currentSessionId={currentSessionId}
             />
           </div>
         )}
