@@ -65,6 +65,32 @@ app.post('/api/sessions/:sessionId/reconnect', (req, res) => {
   }
 });
 
+// API endpoint to remove/terminate a session
+app.delete('/api/sessions/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  
+  // Find the session
+  const foundSession = allSessions.get(sessionId);
+  
+  if (foundSession) {
+    console.log(`Removing session ${sessionId} via API request`);
+    
+    // Clean up the session
+    cleanupSessionById(sessionId);
+    
+    res.json({ 
+      success: true, 
+      sessionId: sessionId,
+      message: 'Session removed successfully' 
+    });
+  } else {
+    res.status(404).json({ 
+      success: false, 
+      message: 'Session not found' 
+    });
+  }
+});
+
 // Serve static files from the React app build directory
 const buildPath = path.join(__dirname, '../client/build');
 app.use(express.static(buildPath));
@@ -129,13 +155,13 @@ wss.on('connection', (ws) => {
     console.log('WebSocket connection closed');
     ws.isAlive = false;
     
-    // Start 2-minute timeout for reconnection
+    // Start 3-day timeout for reconnection
     setTimeout(() => {
       if (!ws.isAlive) {
-        console.log('WebSocket did not reconnect within 2 minutes, cleaning up session');
+        console.log('WebSocket did not reconnect within 3 days, cleaning up session');
         cleanupSession(ws);
       }
-    }, 120000);
+    }, 259200000); // 3 days = 3 * 24 * 60 * 60 * 1000 ms
   });
   
   ws.on('error', (error) => {
@@ -147,7 +173,7 @@ wss.on('connection', (ws) => {
 // Periodic cleanup of stale sessions
 setInterval(() => {
   const now = Date.now();
-  const staleThreshold = 120000; // 2 minutes
+  const staleThreshold = 259200000; // 3 days = 3 * 24 * 60 * 60 * 1000 ms
   
   // Check all sessions for staleness
   allSessions.forEach((session, sessionId) => {
@@ -203,27 +229,49 @@ function reconnectToSession(ws, sessionId) {
       workingDir: foundSession.workingDir
     }));
     
-    // SIMPLE APPROACH: Clear terminal and refresh current status instead of complex buffer management
-    console.log(`Session ${sessionId} reconnected - clearing terminal and refreshing current status`);
+    // IMPROVED APPROACH: Restore the preserved terminal buffer to show Claude Code interface
+    console.log(`Session ${sessionId} reconnected - restoring preserved terminal buffer`);
     
     // Set up event handlers first
     setupSessionEventHandlers(ws, foundSession);
     
-    // Send a clear terminal signal to frontend
-    ws.send(JSON.stringify({ 
-      type: 'terminal-refresh',
-      sessionId: sessionId
-    }));
-    
-    // Send a simple refresh command to the PTY to show current status
-    // This will naturally display the current Claude Code state
-    setTimeout(() => {
-      if (foundSession.ptyProcess && !foundSession.ptyProcess.killed) {
-        // Send Ctrl+C followed by Enter to refresh the prompt cleanly
-        foundSession.ptyProcess.write('\x03\r');
-        console.log(`Session ${sessionId} terminal refreshed with current status`);
-      }
-    }, 200); // Small delay to ensure terminal is ready
+    // Send the preserved buffer content to frontend to restore Claude Code interface
+    if (foundSession.terminalBuffer && foundSession.terminalBuffer.length > 0) {
+      console.log(`Restoring ${foundSession.terminalBuffer.length} bytes of preserved buffer for session ${sessionId}`);
+      
+      // Wait for frontend terminal to be created before sending buffer restore
+      setTimeout(() => {
+        if (foundSession.ptyProcess && !foundSession.ptyProcess.killed) {
+          // Send buffer restore signal to frontend
+          ws.send(JSON.stringify({ 
+            type: 'buffer-restore',
+            sessionId: sessionId,
+            data: foundSession.terminalBuffer
+          }));
+          
+          console.log(`Buffer restore sent for session ${sessionId} after terminal ready`);
+        }
+      }, 500); // Wait 500ms for terminal to be created
+      
+      // Mark buffer as restored
+      foundSession.lastBufferUpdate = Date.now();
+    } else {
+      console.log(`No preserved buffer for session ${sessionId}, sending fresh terminal signal`);
+      
+      // Send a clear terminal signal to frontend
+      ws.send(JSON.stringify({ 
+        type: 'terminal-refresh',
+        sessionId: sessionId
+      }));
+      
+      // Try to get Claude Code to show its interface by sending Enter
+      setTimeout(() => {
+        if (foundSession.ptyProcess && !foundSession.ptyProcess.killed) {
+          foundSession.ptyProcess.write('\r');
+          console.log(`Session ${sessionId} prompted for interface display`);
+        }
+      }, 200);
+    }
     
     console.log(`Session ${sessionId} reconnected successfully`);
     

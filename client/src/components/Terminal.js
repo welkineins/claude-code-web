@@ -8,19 +8,24 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [, setIsInitialized] = useState(false);
   const processedMessagesRef = useRef(0);
   const processingRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
     
-    // Don't reset message processing counter - it should persist across re-renders
     console.log('Terminal useEffect triggered, current message count:', processedMessagesRef.current);
     processingRef.current = false;
 
     const initializeTerminal = () => {
-      if (!terminalRef.current || xtermRef.current || !mounted) return;
+      // Prevent multiple terminal instances
+      if (!terminalRef.current || xtermRef.current || !mounted) {
+        console.log('Skipping terminal init - already exists or not mounted');
+        return;
+      }
+      
+      console.log('🔴 CREATING NEW TERMINAL INSTANCE');
 
       // Calculate initial terminal size based on container
       const container = terminalRef.current;
@@ -88,28 +93,8 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
         xtermRef.current = xterm;
         fitAddonRef.current = fitAddon;
 
-        // Handle input from terminal
-        xterm.onData((data) => {
-          console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
-          if (onInput && currentSessionId) {
-            onInput(data);
-          } else {
-            console.warn('Terminal input ignored - no active session or onInput callback');
-          }
-        });
-        
-        // Terminal is ready - ensure it's clean for the session
-        console.log('🔴 TERMINAL INITIALIZATION - New terminal created');
-
-        // Handle resize
-        xterm.onResize(({ cols, rows }) => {
-          console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
-          if (onResize && currentSessionId) {
-            onResize(cols, rows);
-          } else {
-            console.warn('Terminal resize ignored - no active session or onResize callback');
-          }
-        });
+        // Terminal is ready - handlers will be set up separately when session is ready
+        console.log('🔴 TERMINAL INITIALIZATION - New terminal created, handlers will be set up separately');
 
         // Wait for terminal to be fully rendered before fitting
         const fitTimer = setTimeout(() => {
@@ -118,31 +103,16 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
               fitAddon.fit();
               setIsInitialized(true);
               
-              // Send initial resize to server to sync dimensions
-              console.log('🔴 INITIAL FIT RESIZE:', xterm.cols, 'x', xterm.rows, 'Session ID:', currentSessionId);
-              if (onResize && currentSessionId) {
-                onResize(xterm.cols, xterm.rows);
-              }
+              // Terminal is ready for content
+              console.log('🔴 TERMINAL FITTED and ready for session');
             } catch (error) {
               console.warn('Error fitting terminal on initialization:', error);
             }
           }
         }, 100);
 
-        // Send another resize after a brief delay to ensure Claude Code gets the correct size
-        const syncTimer = setTimeout(() => {
-          if (mounted && fitAddon && xtermRef.current && xtermRef.current.element) {
-            try {
-              fitAddon.fit();
-              console.log('🔴 SYNC TIMER RESIZE:', xtermRef.current.cols, 'x', xtermRef.current.rows, 'Session ID:', currentSessionId);
-              if (onResize && currentSessionId) {
-                onResize(xtermRef.current.cols, xtermRef.current.rows);
-              }
-            } catch (error) {
-              console.warn('Error in terminal size sync:', error);
-            }
-          }
-        }, 500);
+        // Terminal is initialized and ready
+        console.log('🔴 TERMINAL INITIALIZATION COMPLETE');
 
         // Handle window resize
         const handleResize = () => {
@@ -165,7 +135,6 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
 
         return () => {
           clearTimeout(fitTimer);
-          clearTimeout(syncTimer);
           window.removeEventListener('resize', handleResize);
           if (xtermRef.current) {
             xtermRef.current.dispose();
@@ -186,7 +155,7 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
       mounted = false;
       cancelAnimationFrame(rafId);
     };
-  }, [onInput, onResize]);
+  }, [onInput, onResize, currentSessionId]);
 
   useEffect(() => {
     if (messages.length > processedMessagesRef.current && xtermRef.current && !processingRef.current) {
@@ -212,27 +181,43 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
                 await new Promise(resolve => setTimeout(resolve, 10));
                 break;
                 
-              case 'terminal-refresh':
-                console.log('Terminal refresh requested for session:', message.sessionId);
-                // Simple and clean: just clear the terminal and let fresh output populate it
+              case 'buffer-restore':
+                console.log('Restoring terminal buffer:', message.data.length, 'bytes for session:', message.sessionId);
+                // Clear terminal first, then restore the preserved buffer content
                 xtermRef.current.reset();
                 xtermRef.current.clear();
-                console.log('Terminal cleared for fresh session state');
-                // The server will send a refresh command to show current status
+                // Write the preserved buffer content
+                xtermRef.current.write(message.data);
+                await new Promise(resolve => setTimeout(resolve, 50));
                 break;
                 
-              case 'buffer-restore':
-                console.log('Restoring session buffer:', message.data ? message.data.length + ' bytes' : 'empty');
-                // Only restore if there's actual buffer data (for new sessions)
-                if (message.data && message.data.length > 0) {
-                  xtermRef.current.reset();
-                  xtermRef.current.clear();
-                  xtermRef.current.write(message.data);
-                  await new Promise(resolve => setTimeout(resolve, 50));
-                } else {
-                  console.log('No buffer to restore - keeping current terminal state');
+              case 'terminal-refresh':
+                console.log('Terminal refresh requested for session:', message.sessionId);
+                // Complete terminal reset for clean reconnection
+                xtermRef.current.reset();
+                xtermRef.current.clear();
+                // Clear scroll buffer using correct method
+                try {
+                  xtermRef.current.scrollToTop();
+                  // Clear any internal buffers
+                  xtermRef.current.selectAll();
+                  xtermRef.current.clearSelection();
+                } catch (error) {
+                  console.warn('Error clearing terminal buffers:', error);
                 }
+                // Force a resize to ensure proper dimensions
+                if (fitAddonRef.current) {
+                  setTimeout(() => {
+                    try {
+                      fitAddonRef.current.fit();
+                    } catch (error) {
+                      console.warn('Error fitting terminal during refresh:', error);
+                    }
+                  }, 100);
+                }
+                console.log('Terminal completely reset for fresh session state');
                 break;
+                
                 
               case 'session-started':
                 console.log('Session started:', message.sessionId);
@@ -272,30 +257,37 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
   // Set up input and resize handlers when currentSessionId changes
   useEffect(() => {
     if (xtermRef.current && currentSessionId) {
-      console.log('Setting up terminal handlers for session:', currentSessionId);
+      console.log('🔴 UPDATING HANDLERS for session:', currentSessionId);
       
-      // Remove existing handlers
+      // Clear existing handlers completely
       xtermRef.current.onData(() => {});
       xtermRef.current.onResize(() => {});
       
-      // Set up new handlers with current session ID
-      xtermRef.current.onData((data) => {
-        console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
-        if (onInput && currentSessionId) {
-          onInput(data);
-        } else {
-          console.warn('Terminal input ignored - no active session or onInput callback');
+      // Add a small delay to ensure handlers are cleared
+      setTimeout(() => {
+        if (xtermRef.current && currentSessionId) {
+          // Set up new handlers with current session ID
+          xtermRef.current.onData((data) => {
+            console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
+            if (onInput && currentSessionId) {
+              onInput(data);
+            } else {
+              console.warn('Terminal input ignored - no active session or onInput callback');
+            }
+          });
+          
+          xtermRef.current.onResize(({ cols, rows }) => {
+            console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
+            if (onResize && currentSessionId) {
+              onResize(cols, rows);
+            } else {
+              console.warn('Terminal resize ignored - no active session or onResize callback');
+            }
+          });
+          
+          console.log('🔴 HANDLERS UPDATED for session:', currentSessionId);
         }
-      });
-      
-      xtermRef.current.onResize(({ cols, rows }) => {
-        console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
-        if (onResize && currentSessionId) {
-          onResize(cols, rows);
-        } else {
-          console.warn('Terminal resize ignored - no active session or onResize callback');
-        }
-      });
+      }, 50);
     }
   }, [currentSessionId, onInput, onResize]);
 

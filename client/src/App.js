@@ -21,6 +21,7 @@ function App() {
         wsRef.current.close();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connectWebSocket = () => {
@@ -73,6 +74,14 @@ function App() {
           console.log('Setting currentSessionId to:', data.sessionId);
           setCurrentSessionId(data.sessionId);
           return; // Don't add session-started to messages array
+        }
+        
+        // Handle buffer restore for reconnection
+        if (data.type === 'buffer-restore') {
+          console.log('Restoring terminal buffer for session:', data.sessionId);
+          // Add the buffer restore message to the messages array - Terminal.js will handle it
+          setMessages([data]);
+          return;
         }
         
         setMessages(prev => [...prev, data]);

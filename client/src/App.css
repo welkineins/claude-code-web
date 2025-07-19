@@ -8,6 +8,12 @@ body {
   padding: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  overflow-x: hidden;
+  contain: layout style;
 }
 
 .App {
@@ -487,6 +493,8 @@ body {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  contain: layout style paint;
+  isolation: isolate;
 }
 
 @media (max-width: 768px) {
@@ -504,10 +512,12 @@ body {
 
 .terminal-wrapper .xterm .xterm-viewport {
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .terminal-wrapper .xterm .xterm-screen {
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Session List Styles */
@@ -675,6 +685,7 @@ body {
 .session-card .session-actions {
   margin: 0;
   justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .reconnect-button {
@@ -690,4 +701,19 @@ body {
 
 .reconnect-button:hover {
   background-color: #1177bb;
+}
+
+.remove-button {
+  padding: 0.5rem 1rem;
+  background-color: #cd3131;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.remove-button:hover {
+  background-color: #f14c4c;
 }
