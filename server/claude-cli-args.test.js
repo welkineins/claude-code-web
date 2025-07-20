@@ -50,57 +50,57 @@ describe('Claude CLI Arguments Configuration', () => {
   });
 
   test('should parse space-separated arguments correctly', () => {
-    process.env.CLAUDE_CLI_ARGS = '--verbose --no-color --debug';
+    process.env.CLAUDE_CLI_ARGS = '--debug --verbose';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--verbose', '--no-color', '--debug']);
+    expect(result).toEqual(['--debug', '--verbose']);
   });
 
   test('should parse arguments with extra spaces correctly', () => {
-    process.env.CLAUDE_CLI_ARGS = '  --verbose   --no-color  --debug  ';
+    process.env.CLAUDE_CLI_ARGS = '  --debug   --verbose  --model sonnet  ';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--verbose', '--no-color', '--debug']);
+    expect(result).toEqual(['--debug', '--verbose', '--model', 'sonnet']);
   });
 
   test('should parse single argument correctly', () => {
-    process.env.CLAUDE_CLI_ARGS = '--verbose';
+    process.env.CLAUDE_CLI_ARGS = '--debug';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--verbose']);
+    expect(result).toEqual(['--debug']);
   });
 
   test('should parse JSON array format correctly', () => {
-    process.env.CLAUDE_CLI_ARGS = '["--verbose", "--no-color", "--debug"]';
+    process.env.CLAUDE_CLI_ARGS = '["--debug", "--verbose", "--model", "sonnet"]';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--verbose', '--no-color', '--debug']);
+    expect(result).toEqual(['--debug', '--verbose', '--model', 'sonnet']);
   });
 
   test('should parse JSON array with complex arguments correctly', () => {
-    process.env.CLAUDE_CLI_ARGS = '["--config", "/path/to/config.json", "--verbose"]';
+    process.env.CLAUDE_CLI_ARGS = '["--mcp-config", "/path/to/mcp.json", "--debug"]';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--config', '/path/to/config.json', '--verbose']);
+    expect(result).toEqual(['--mcp-config', '/path/to/mcp.json', '--debug']);
   });
 
   test('should fallback to space-separated parsing when JSON parsing fails', () => {
-    process.env.CLAUDE_CLI_ARGS = '["--invalid-json --verbose --debug';
+    process.env.CLAUDE_CLI_ARGS = '["--invalid-json --debug --verbose';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['["--invalid-json', '--verbose', '--debug']);
+    expect(result).toEqual(['["--invalid-json', '--debug', '--verbose']);
   });
 
   test('should handle empty JSON array', () => {
@@ -113,39 +113,39 @@ describe('Claude CLI Arguments Configuration', () => {
   });
 
   test('should handle arguments with equals signs', () => {
-    process.env.CLAUDE_CLI_ARGS = '--config=/path/to/config --timeout=30';
+    process.env.CLAUDE_CLI_ARGS = '--model=sonnet --permission-mode=acceptEdits';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--config=/path/to/config', '--timeout=30']);
+    expect(result).toEqual(['--model=sonnet', '--permission-mode=acceptEdits']);
   });
 
   test('should handle quoted arguments in JSON format', () => {
-    process.env.CLAUDE_CLI_ARGS = '["--message", "Hello World", "--path", "/tmp/test dir"]';
+    process.env.CLAUDE_CLI_ARGS = '["--append-system-prompt", "You are helpful", "--add-dir", "/tmp/test dir"]';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--message', 'Hello World', '--path', '/tmp/test dir']);
+    expect(result).toEqual(['--append-system-prompt', 'You are helpful', '--add-dir', '/tmp/test dir']);
   });
 
   test('should handle mixed argument formats', () => {
-    process.env.CLAUDE_CLI_ARGS = '--dangerously-skip-permissions --verbose --no-interactive';
+    process.env.CLAUDE_CLI_ARGS = '--dangerously-skip-permissions --debug --verbose';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
-    expect(result).toEqual(['--dangerously-skip-permissions', '--verbose', '--no-interactive']);
+    expect(result).toEqual(['--dangerously-skip-permissions', '--debug', '--verbose']);
   });
 
   test('should handle invalid JSON that is not an array', () => {
-    process.env.CLAUDE_CLI_ARGS = '{"config": "value"}';
+    process.env.CLAUDE_CLI_ARGS = '{"model": "sonnet"}';
     
     const { getClaudeCliArgs } = require('./index.js');
     const result = getClaudeCliArgs();
     
     // Should fallback to space-separated parsing
-    expect(result).toEqual(['{"config":', '"value"}']);
+    expect(result).toEqual(['{"model":', '"sonnet"}']);
   });
 });

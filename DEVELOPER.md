@@ -239,33 +239,45 @@ The `CLAUDE_CLI_ARGS` environment variable allows you to customize the arguments
 # CLAUDE_CLI_ARGS=""  # Uses: --dangerously-skip-permissions
 
 # Custom arguments using space-separated format
-export CLAUDE_CLI_ARGS="--verbose --no-color --debug"
+export CLAUDE_CLI_ARGS="--debug --verbose"
 
 # Custom arguments using JSON array format (for complex arguments)
-export CLAUDE_CLI_ARGS='["--config", "/path/to/config.json", "--verbose"]'
+export CLAUDE_CLI_ARGS='["--model", "sonnet", "--debug"]'
 
 # Start the server
 npm run server
 ```
 
 **Supported formats:**
-- **Space-separated**: `"--verbose --no-color --debug"`
-- **JSON array**: `'["--config", "/path/to/config.json", "--verbose"]'`
+- **Space-separated**: `"--debug --verbose"`
+- **JSON array**: `'["--model", "sonnet", "--debug"]'`
 - **Empty**: Uses default `--dangerously-skip-permissions`
 
 **Example configurations:**
 ```bash
-# Verbose output with no colors
-CLAUDE_CLI_ARGS="--verbose --no-color"
+# Debug mode with verbose output
+CLAUDE_CLI_ARGS="--debug --verbose"
 
-# Debug mode with custom config
-CLAUDE_CLI_ARGS='["--debug", "--config", "/etc/claude/config.json"]'
+# Specific model with debug mode
+CLAUDE_CLI_ARGS='["--model", "sonnet", "--debug"]'
 
-# Minimal permissions (remove yolo mode)
-CLAUDE_CLI_ARGS=""  # This will use default: --dangerously-skip-permissions
+# Permission mode configuration
+CLAUDE_CLI_ARGS="--permission-mode acceptEdits --verbose"
 
-# Custom timeout and no interactive mode
-CLAUDE_CLI_ARGS="--timeout=60 --no-interactive --verbose"
+# Custom MCP configuration
+CLAUDE_CLI_ARGS='["--mcp-config", "/etc/claude/mcp.json", "--debug"]'
+
+# Tool restrictions with debug
+CLAUDE_CLI_ARGS="--allowedTools 'Bash Edit Read' --debug"
+
+# Bypass permissions (current default)
+CLAUDE_CLI_ARGS="--dangerously-skip-permissions"
+
+# Remove yolo mode and use default permissions
+CLAUDE_CLI_ARGS=""  # This removes --dangerously-skip-permissions
+
+# Continue previous session with debug
+CLAUDE_CLI_ARGS="--continue --debug --verbose"
 ```
 
 **Security note**: Only use trusted arguments as they directly control the Claude CLI execution environment.
