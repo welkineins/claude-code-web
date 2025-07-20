@@ -51,6 +51,28 @@ const SessionList = ({ onSelectSession, onNewSession }) => {
     }
   };
 
+  const handleRemoveSession = async (sessionId) => {
+    if (!window.confirm(`Are you sure you want to remove session ${sessionId}? This will terminate the Claude Code process and cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // Refresh sessions list to remove the deleted session
+        fetchSessions();
+      } else {
+        const error = await response.json();
+        alert(`Failed to remove session: ${error.message}`);
+      }
+    } catch (err) {
+      alert('Error removing session');
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
   };
@@ -129,6 +151,13 @@ const SessionList = ({ onSelectSession, onNewSession }) => {
                   className="reconnect-button"
                 >
                   {session.isConnected ? 'Connect' : 'Reconnect'}
+                </button>
+                <button 
+                  onClick={() => handleRemoveSession(session.sessionId)}
+                  className="remove-button"
+                  title="Remove Session"
+                >
+                  Remove
                 </button>
               </div>
             </div>

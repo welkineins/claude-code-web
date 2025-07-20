@@ -155,7 +155,7 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
       mounted = false;
       cancelAnimationFrame(rafId);
     };
-  }, [onInput, onResize, currentSessionId]);
+  }, []); // Remove dependencies to prevent re-initialization
 
   useEffect(() => {
     if (messages.length > processedMessagesRef.current && xtermRef.current && !processingRef.current) {
@@ -183,12 +183,57 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
                 
               case 'buffer-restore':
                 console.log('Restoring terminal buffer:', message.data.length, 'bytes for session:', message.sessionId);
-                // Clear terminal first, then restore the preserved buffer content
-                xtermRef.current.reset();
+                // Only clear display content, don't reset completely to preserve handlers
                 xtermRef.current.clear();
                 // Write the preserved buffer content
                 xtermRef.current.write(message.data);
                 await new Promise(resolve => setTimeout(resolve, 50));
+                console.log('Buffer restore completed, terminal should be ready for input');
+                
+                // CRITICAL FIX: Manually trigger handler setup after buffer restore
+                // The useEffect might not trigger properly during buffer restore, so we force it
+                console.log('🔴 BUFFER-RESTORE: Forcing handler setup for session:', message.sessionId);
+                if (currentSessionId && onInput && onResize) {
+                  console.log('🔴 BUFFER-RESTORE: Setting up handlers manually for session:', currentSessionId);
+                  
+                  // Clear existing handlers
+                  xtermRef.current.onData(() => {});
+                  xtermRef.current.onResize(() => {});
+                  
+                  // Set up new handlers
+                  const dataHandler = (data) => {
+                    console.log('🔴 MANUAL FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
+                    if (onInput && currentSessionId) {
+                      onInput(data);
+                    } else {
+                      console.warn('Manual terminal input ignored - no active session or onInput callback');
+                    }
+                  };
+                  
+                  const resizeHandler = ({ cols, rows }) => {
+                    console.log('🔴 MANUAL FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
+                    if (onResize && currentSessionId) {
+                      onResize(cols, rows);
+                    } else {
+                      console.warn('Manual terminal resize ignored - no active session or onResize callback');
+                    }
+                  };
+                  
+                  xtermRef.current.onData(dataHandler);
+                  xtermRef.current.onResize(resizeHandler);
+                  
+                  console.log('🔴 BUFFER-RESTORE: Manual handlers set up successfully for session:', currentSessionId);
+                  
+                  // Force focus to ensure terminal is active
+                  try {
+                    xtermRef.current.focus();
+                    console.log('🔴 BUFFER-RESTORE: Terminal focused for input');
+                  } catch (error) {
+                    console.warn('🔴 BUFFER-RESTORE: Error focusing terminal:', error);
+                  }
+                } else {
+                  console.warn('🔴 BUFFER-RESTORE: Cannot set up handlers - missing dependencies', 'currentSessionId:', currentSessionId, 'onInput:', !!onInput, 'onResize:', !!onResize);
+                }
                 break;
                 
               case 'terminal-refresh':
@@ -256,6 +301,8 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
 
   // Set up input and resize handlers when currentSessionId changes
   useEffect(() => {
+    console.log('🔴 Handler setup useEffect triggered. currentSessionId:', currentSessionId, 'xtermRef:', !!xtermRef.current, 'onInput type:', typeof onInput, 'onResize type:', typeof onResize);
+    
     if (xtermRef.current && currentSessionId) {
       console.log('🔴 UPDATING HANDLERS for session:', currentSessionId);
       
@@ -263,31 +310,56 @@ const Terminal = ({ messages, onInput, onResize, currentSessionId }) => {
       xtermRef.current.onData(() => {});
       xtermRef.current.onResize(() => {});
       
-      // Add a small delay to ensure handlers are cleared
+      // Add a small delay to ensure handlers are cleared and terminal is ready
       setTimeout(() => {
         if (xtermRef.current && currentSessionId) {
-          // Set up new handlers with current session ID
-          xtermRef.current.onData((data) => {
-            console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionId);
-            if (onInput && currentSessionId) {
-              onInput(data);
-            } else {
-              console.warn('Terminal input ignored - no active session or onInput callback');
-            }
-          });
+          console.log('🔴 Setting up new handlers for session:', currentSessionId, 'onInput available:', !!onInput, 'onResize available:', !!onResize);
           
-          xtermRef.current.onResize(({ cols, rows }) => {
-            console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionId);
-            if (onResize && currentSessionId) {
-              onResize(cols, rows);
-            } else {
-              console.warn('Terminal resize ignored - no active session or onResize callback');
-            }
-          });
+          // Set up new handlers with current session ID - capture current values
+          const currentSessionForHandler = currentSessionId;
+          const currentOnInput = onInput;
+          const currentOnResize = onResize;
           
-          console.log('🔴 HANDLERS UPDATED for session:', currentSessionId);
+          const dataHandler = (data) => {
+            console.log('🔴 FRONTEND INPUT:', JSON.stringify(data), 'Session ID:', currentSessionForHandler);
+            if (currentOnInput && currentSessionForHandler) {
+              currentOnInput(data);
+            } else {
+              console.warn('Terminal input ignored - no active session or onInput callback', 'onInput:', !!currentOnInput, 'sessionId:', currentSessionForHandler);
+            }
+          };
+          
+          const resizeHandler = ({ cols, rows }) => {
+            console.log('🔴 FRONTEND RESIZE:', cols, 'x', rows, 'Session ID:', currentSessionForHandler);
+            if (currentOnResize && currentSessionForHandler) {
+              currentOnResize(cols, rows);
+            } else {
+              console.warn('Terminal resize ignored - no active session or onResize callback', 'onResize:', !!currentOnResize, 'sessionId:', currentSessionForHandler);
+            }
+          };
+          
+          xtermRef.current.onData(dataHandler);
+          xtermRef.current.onResize(resizeHandler);
+          
+          console.log('🔴 HANDLERS UPDATED for session:', currentSessionForHandler, 'Terminal focused:', xtermRef.current.hasSelection());
+          
+          // Test if terminal is ready for input
+          if (xtermRef.current.element) {
+            console.log('🔴 Terminal element exists, handlers should be working');
+            // Force focus to ensure terminal is active
+            try {
+              xtermRef.current.focus();
+              console.log('🔴 Terminal focused for input');
+            } catch (error) {
+              console.warn('🔴 Error focusing terminal:', error);
+            }
+          }
+        } else {
+          console.warn('🔴 Handler setup failed - terminal or session not ready during timeout', 'xtermRef:', !!xtermRef.current, 'currentSessionId:', currentSessionId);
         }
-      }, 50);
+      }, 100); // Increased delay to ensure buffer restore completes
+    } else {
+      console.log('🔴 Skipping handler setup - terminal not ready or no session', 'xtermRef exists:', !!xtermRef.current, 'currentSessionId:', currentSessionId);
     }
   }, [currentSessionId, onInput, onResize]);
 

@@ -81,6 +81,11 @@ function App() {
           console.log('Restoring terminal buffer for session:', data.sessionId);
           // Add the buffer restore message to the messages array - Terminal.js will handle it
           setMessages([data]);
+          // CRITICAL: Set currentSessionId AFTER buffer-restore to ensure terminal is ready for handlers
+          setTimeout(() => {
+            console.log('Setting currentSessionId after buffer-restore delay:', data.sessionId);
+            setCurrentSessionId(data.sessionId);
+          }, 200); // Increased delay to ensure terminal is fully ready
           return;
         }
         
