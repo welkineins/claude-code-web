@@ -1,382 +1,116 @@
 # Claude Code Web UI
 
-A modern web interface for Claude Code CLI with real-time bi-directional streaming support. This application provides an intuitive browser-based terminal interface for interacting with Claude Code, complete with session management, persistence, and multi-session support.
+A web browser interface for Claude Code CLI that lets you interact with Claude through your browser. Think of it as a web-based terminal for Claude that you can access from anywhere on your local network.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)
-![React](https://img.shields.io/badge/react-18.x-blue.svg)
-![Tests](https://img.shields.io/badge/tests-100%2B%20passing-green.svg)
 
-## ✨ Features
+## ⚠️ Security Notice
 
-### 🖥️ **Web-Based Terminal Interface**
-- Full-featured terminal using xterm.js
-- Real-time streaming of input/output
-- Terminal resizing and responsive design
-- Mobile-optimized interface
+**IMPORTANT: This application is very powerful and should only be used in secure environments.**
 
-### 🔄 **Session Management**
-- Create multiple Claude Code sessions
-- List and manage active sessions
-- Reconnect to existing sessions after disconnect
-- Session persistence with automatic cleanup
-- Working directory path selection
+- 🏠 **Local Network Only**: Only run this on your private network (home/office)
+- 🚫 **No Public Access**: Never expose this to the internet or public networks
+- 👤 **Personal Use**: Only you should have access to this interface
+- 🔒 **Additional Security**: For enhanced security, consider running in a sandbox environment
 
-### 🌐 **Real-Time Communication**
-- WebSocket-based bi-directional streaming
-- 16ms buffering for smooth terminal updates
-- Automatic reconnection handling
-- Session state synchronization
+**Why this matters**: Claude Code has full access to your computer's filesystem and can execute commands. This web interface provides the same level of access through a browser, which could be dangerous if accessed by unauthorized users.
 
-### 📱 **Responsive Design**
-- Desktop and mobile support
-- Collapsible mobile menu
-- Touch-optimized controls
-- Adaptive terminal sizing
+## 🚀 Quick Setup
 
-### 🛡️ **Robust Architecture**
-- Test-driven development (100+ tests)
-- Comprehensive error handling
-- Memory leak prevention
-- Process lifecycle management
+### What You Need
 
-### 🔒 **Security Features**
-- Working directory prefix enforcement
-- Path traversal attack prevention
-- Input validation and sanitization
-- Null byte injection protection
-- Automatic directory creation with security validation
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Node.js** 16.0.0 or higher
-- **npm** or **yarn**
-- **Claude Code CLI** installed and accessible in PATH
+- **Node.js** 16.0.0 or newer ([Download here](https://nodejs.org/))
+- **Claude Code CLI** installed and working ([Setup instructions](https://docs.anthropic.com/claude/docs/claude-code))
 
 ### Installation
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd claude-code-web-ui
+1. **Download this project**
+   ```bash
+   git clone <repository-url>
+   cd claude-code-web-ui
+   ```
 
-# Install dependencies
-npm install
-cd client && npm install && cd ..
+2. **Install dependencies**
+   ```bash
+   npm install
+   cd client && npm install && cd ..
+   ```
 
-# Build the application
-npm run build
+3. **Build the application**
+   ```bash
+   npm run build
+   ```
 
-# Start the server
-npm run server
-```
+4. **Start the server**
+   ```bash
+   npm run server
+   ```
 
-The application will be available at `http://localhost:3001`
+5. **Open your browser**
+   - Go to `http://localhost:3001`
+   - You should see the Claude Code Web interface
 
-### Development Mode
+## 📖 How to Use
 
-```bash
-# Run both frontend and backend in development mode
-npm run dev
+### Starting Your First Session
 
-# Or run separately:
-npm run server    # Backend only (port 3001)
-npm run client    # Frontend only (port 3000)
-```
+1. **Open the web interface** at `http://localhost:3001`
+2. **Choose a working directory** - this is where Claude will work (like `/Users/yourname/Documents/myproject`)
+3. **Click "Start Session"**
+4. **Start chatting with Claude** in the terminal interface
 
-## 📖 Usage
+### Managing Multiple Sessions
 
-### Starting a Session
-
-1. **Access the web interface** at `http://localhost:3001`
-2. **Enter a working directory path** where you want Claude Code to run
-3. **Click "Start Session"** to create a new Claude Code session
-4. **Interact with Claude Code** through the web terminal interface
-
-### Managing Sessions
-
-- **View Active Sessions**: Click the "Active Sessions" button to see all running sessions
-- **Reconnect**: Click "Reconnect" on any session to resume interaction
-- **Remove Sessions**: Click "Remove" to terminate a session and clean up resources
-- **Create New**: Use "Start New Session" to launch additional sessions
+- **View All Sessions**: Click "Active Sessions" to see all running Claude sessions
+- **Switch Sessions**: Click "Reconnect" to switch between different sessions
+- **Create New Sessions**: Click "New Session" to start additional Claude instances
+- **Remove Sessions**: Click "Remove" to stop a session when you're done
 
 ### Session Features
 
-- **Session Persistence**: Sessions continue running even if you close the browser
-- **Automatic Cleanup**: Inactive sessions are cleaned up after 2 minutes
-- **Buffer Restoration**: Terminal content is preserved when reconnecting
-- **Multi-Session Support**: Run multiple Claude Code instances simultaneously
-
-## 🏗️ Architecture
-
-### Backend (Node.js + Express + WebSocket)
-
-```
-server/
-├── index.js              # Main server with WebSocket handling
-├── basic-session.test.js  # Basic session API tests
-└── index.test.js         # Integration tests
-```
-
-**Key Components:**
-- **Express Server**: REST API for session management
-- **WebSocket Server**: Real-time terminal communication
-- **PTY Integration**: Uses node-pty for proper terminal emulation
-- **Session Store**: In-memory session management with persistence
-
-### Frontend (React + xterm.js)
-
-```
-client/src/
-├── App.js                           # Main application component
-├── components/
-│   ├── PathInput.js                 # Working directory input
-│   ├── Terminal.js                  # Terminal interface
-│   └── SessionList.js               # Session management UI
-└── tests/                           # Component tests
-```
-
-**Key Features:**
-- **React 18**: Modern React with hooks and functional components
-- **xterm.js**: Professional terminal emulator
-- **WebSocket Client**: Real-time communication with backend
-- **Responsive UI**: Mobile-first design with desktop optimization
-
-### Data Flow
-
-```
-User Input → WebSocket → PTY Process → Claude Code CLI
-     ↓           ↑            ↑              ↓
-Web Terminal ← WebSocket ← PTY Output ← Claude Response
-```
-
-## 🧪 Testing
-
-The project follows Test-Driven Development (TDD) with comprehensive test coverage:
-
-### Test Suites
-
-```bash
-# Server Tests (30 tests)
-npm test
-
-# Client Tests (70+ tests) 
-cd client && npm test
-
-# All Tests
-npm run test:all
-```
-
-### Test Categories
-
-- **Unit Tests**: Individual component functionality
-- **Integration Tests**: Component interaction and API endpoints
-- **Regression Tests**: Prevention of known bugs
-- **UI Tests**: User interaction workflows
-- **API Tests**: Server endpoint validation
-
-### Test Coverage
-
-- **Server**: Session management, WebSocket handling, PTY integration
-- **Client**: Terminal functionality, session UI, reconnection logic
-- **Critical Paths**: Session persistence, input handling, buffer management
-
-## 🛠️ Development
-
-### Development Workflow (TDD)
-
-1. **Red Phase**: Write failing tests for new functionality
-2. **Green Phase**: Implement minimal code to pass tests
-3. **Build & Validate**: Run full build and test cycle
-4. **Refactor**: Clean up code while keeping tests green
-
-### Essential Commands
-
-```bash
-# Development workflow
-npm run build              # Build production assets
-npm test                   # Run server tests (must pass)
-cd client && npm test      # Run client tests (must pass)
-npm run lint              # Code quality checks
-
-# Development servers
-npm run dev               # Both frontend and backend
-npm run server            # Backend only
-npm run client            # Frontend only
-```
-
-### Code Quality
-
-- **ESLint**: JavaScript/React code linting
-- **Test Coverage**: 100+ tests covering critical paths
-- **Type Safety**: Proper error handling and validation
-- **Performance**: Optimized terminal rendering and memory usage
-
-## 📁 Project Structure
-
-```
-claude-code-web-ui/
-├── README.md                 # This file
-├── CLAUDE.md                # Developer documentation
-├── package.json             # Backend dependencies
-├── server/                  # Backend source code
-│   ├── index.js            # Main server
-│   └── *.test.js           # Server tests
-├── client/                 # Frontend application
-│   ├── package.json        # Frontend dependencies
-│   ├── public/             # Static assets
-│   ├── src/                # React source code
-│   └── build/              # Production build (generated)
-└── docs/                   # Additional documentation
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-```bash
-# Server configuration
-PORT=3001                              # Server port (default: 3001)
-NODE_ENV=production                   # Environment mode
-WORKING_DIR_PREFIX=/path/to/sandbox   # Working directory prefix for security
-
-# Client configuration  
-REACT_APP_WS_URL=ws://localhost:3001  # WebSocket URL
-```
-
-### Server Settings
-
-- **Port**: 3001 (configurable via PORT environment variable)
-- **Session Timeout**: 2 minutes for inactive sessions
-- **Buffer Limit**: 50KB per session terminal buffer
-- **Cleanup Interval**: 10 seconds for session maintenance
-
-### 🔒 Working Directory Prefix (Security Feature)
-
-The `WORKING_DIR_PREFIX` environment variable provides a security mechanism to limit where Claude Code sessions can be created:
-
-```bash
-# Example: Restrict all sessions to run within /tmp/sandbox
-export WORKING_DIR_PREFIX=/tmp/sandbox
-
-# Start the server
-npm run server
-```
-
-**How it works:**
-- When a user enters `/Users/john/project`, the actual working directory becomes `/tmp/sandbox/Users/john/project`
-- When a user enters `project`, the actual working directory becomes `/tmp/sandbox/project`
-- All path traversal attempts (`../`, `./`) are automatically rejected for security
-- **Automatic Directory Creation**: If the directory doesn't exist, it will be created recursively
-- **Path Display**: The web UI shows both the user input and the actual normalized path when a prefix is applied
-
-**Security protections:**
-- **Path traversal prevention**: Blocks `../` and `./` sequences
-- **Null byte protection**: Rejects paths containing null bytes
-- **Path validation**: Validates path format and length
-- **Prefix enforcement**: All paths are prefixed with the configured directory
-
-**Example configurations:**
-```bash
-# Sandbox all sessions in /tmp
-WORKING_DIR_PREFIX=/tmp
-
-# Restrict to user's home directory  
-WORKING_DIR_PREFIX=/home/ubuntu
-
-# No prefix (default - allows any valid path)
-# WORKING_DIR_PREFIX=
-```
+- **Persistent Sessions**: Claude keeps running even if you close your browser
+- **Reconnect Anytime**: Close and reopen your browser - your sessions will still be there
+- **Multiple Projects**: Run Claude in different directories for different projects
+- **Mobile Friendly**: Works on phones and tablets too
 
 ## 🚨 Troubleshooting
 
-### Common Issues
+### Server Won't Start
 
-**Server won't start:**
+**Error: Port already in use**
 ```bash
-# Check if port 3001 is available
+# Find what's using port 3001
 lsof -i :3001
+# Kill the process or use a different port
+```
 
-# Ensure Claude CLI is installed
+**Error: Claude command not found**
+```bash
+# Check if Claude CLI is installed
 which claude
+# If not found, install Claude Code CLI first
 ```
 
-**WebSocket connection fails:**
-```bash
-# Verify server is running
-curl http://localhost:3001/api/sessions
+## 📱 Mobile Usage
 
-# Check firewall/proxy settings
-```
+The interface works on mobile devices:
+- Touch-friendly controls
+- Responsive design
+- Swipe gestures for session management
 
-**Tests failing:**
-```bash
-# Clean install dependencies
-rm -rf node_modules client/node_modules
-npm install && cd client && npm install
+Access the same URL (`http://your-computer-ip:3001`) from your phone while on the same network.
 
-# Rebuild and test
-npm run build && npm test
-```
+## 🆘 Getting Help
 
-**Build errors:**
-```bash
-# Clear build cache
-cd client && rm -rf build node_modules/.cache
-npm run build
-```
-
-### Performance Issues
-
-- **High memory usage**: Check for orphaned sessions in Active Sessions list
-- **Slow terminal**: Reduce terminal buffer size or check network latency
-- **Connection drops**: Verify WebSocket proxy configuration
-
-## 🤝 Contributing
-
-### Development Setup
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Follow TDD workflow**: Write tests first, then implement
-4. **Validate changes**: Run full build and test cycle
-5. **Submit a pull request**
-
-### Pull Request Guidelines
-
-- **All tests must pass**: Run `npm run build && npm test && cd client && npm test`
-- **Follow TDD**: Include tests for new functionality
-- **Code quality**: Ensure ESLint passes
-- **Documentation**: Update README/CLAUDE.md if needed
-
-### Bug Reports
-
-When reporting bugs, please include:
-- **Steps to reproduce**
-- **Expected vs actual behavior**
-- **Browser/Node.js versions**
-- **Console logs/error messages**
+- **Issues**: Report problems on GitHub Issues
+- **Questions**: Check existing issues for similar problems
+- **Updates**: Watch the repository for updates and security fixes
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Claude Code CLI**: The underlying Claude Code command-line interface
-- **xterm.js**: Professional terminal emulator for the web
-- **node-pty**: Pseudo terminal bindings for Node.js
-- **React**: User interface library
-- **Express.js**: Web application framework
-
-## 📞 Support
-
-- **Documentation**: See [CLAUDE.md](CLAUDE.md) for detailed development guidance
-- **Issues**: Submit bug reports and feature requests via GitHub Issues
-- **Development**: Follow the TDD workflow documented in CLAUDE.md
+This project is open source under the MIT License.
 
 ---
 
-**Built with ❤️ for seamless Claude Code interaction in the browser**
+**For Developers**: See [DEVELOPER.md](DEVELOPER.md) for technical documentation, architecture details, and development instructions.
