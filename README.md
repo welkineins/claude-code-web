@@ -1,9 +1,11 @@
-# Claude Code Web UI
-
 A web browser interface for Claude Code CLI that lets you interact with Claude through your browser. Think of it as a web-based terminal for Claude that you can access from anywhere on your local network.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)
+
+<img width="239" height="166" alt="1" src="https://github.com/user-attachments/assets/79ae4d4b-8ef0-4825-b09c-71ca7c9f7c11" />
+<img width="239" height="166" alt="2" src="https://github.com/user-attachments/assets/c7a47670-71f4-46c4-9665-437a8db58eff" />
+<img width="239" height="166" alt="3" src="https://github.com/user-attachments/assets/bdb53175-0a5c-45c2-972c-e3e8d95fb2dd" />
 
 ## ⚠️ Security Notice
 
