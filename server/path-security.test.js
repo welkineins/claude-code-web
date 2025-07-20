@@ -264,8 +264,15 @@ describe('Working Directory Prefix and Path Security', () => {
   });
 
   describe('Directory Creation', () => {
+    // Helper function to create random test directory
+    const createRandomTestDir = () => {
+      const randomDir = Math.random().toString(36).substring(7);
+      return `/tmp/test-sandbox-${randomDir}`;
+    };
+
     test('should create directories recursively when they do not exist', async () => {
-      process.env.WORKING_DIR_PREFIX = '/tmp/test-sandbox';
+      const testPrefix = createRandomTestDir();
+      process.env.WORKING_DIR_PREFIX = testPrefix;
       
       delete require.cache[require.resolve('./index.js')];
       const { validateAndCreatePath } = require('./index.js');
@@ -274,20 +281,21 @@ describe('Working Directory Prefix and Path Security', () => {
       const result = await validateAndCreatePath(userInput);
       
       expect(result.isValid).toBe(true);
-      expect(result.normalizedPath).toBe('/tmp/test-sandbox/deep/nested/directory/structure');
+      expect(result.normalizedPath).toBe(`${testPrefix}/deep/nested/directory/structure`);
       expect(result.directoryCreated).toBe(true);
       
       // Verify directory actually exists
       const fs = require('fs');
-      expect(fs.existsSync('/tmp/test-sandbox/deep/nested/directory/structure')).toBe(true);
+      expect(fs.existsSync(`${testPrefix}/deep/nested/directory/structure`)).toBe(true);
     });
 
     test('should not create directory if it already exists', async () => {
-      process.env.WORKING_DIR_PREFIX = '/tmp/test-sandbox';
+      const testPrefix = createRandomTestDir();
+      process.env.WORKING_DIR_PREFIX = testPrefix;
       
       // Create directory first
       const fs = require('fs');
-      fs.mkdirSync('/tmp/test-sandbox/existing', { recursive: true });
+      fs.mkdirSync(`${testPrefix}/existing`, { recursive: true });
       
       delete require.cache[require.resolve('./index.js')];
       const { validateAndCreatePath } = require('./index.js');
@@ -296,26 +304,42 @@ describe('Working Directory Prefix and Path Security', () => {
       const result = await validateAndCreatePath(userInput);
       
       expect(result.isValid).toBe(true);
-      expect(result.normalizedPath).toBe('/tmp/test-sandbox/existing');
+      expect(result.normalizedPath).toBe(`${testPrefix}/existing`);
       expect(result.directoryCreated).toBe(false);
     });
 
     test('should handle permission errors gracefully', async () => {
-      process.env.WORKING_DIR_PREFIX = '/root';
+      // Create a random temp directory for testing
+      const randomDir = Math.random().toString(36).substring(7);
+      const tempPrefix = `/tmp/test-permission-${randomDir}`;
+      process.env.WORKING_DIR_PREFIX = tempPrefix;
       
       delete require.cache[require.resolve('./index.js')];
       const { validateAndCreatePath } = require('./index.js');
+      
+      // Mock fs.mkdirSync to simulate permission error
+      const fs = require('fs');
+      const originalMkdirSync = fs.mkdirSync;
+      fs.mkdirSync = jest.fn().mockImplementation(() => {
+        const error = new Error('EACCES: permission denied');
+        error.code = 'EACCES';
+        throw error;
+      });
       
       const userInput = '/cannot/create/here';
       const result = await validateAndCreatePath(userInput);
       
       expect(result.isValid).toBe(false);
-      expect(result.error).toContain('Directory creation failed');
+      expect(result.error).toContain('Directory creation failed: permission denied');
       expect(result.normalizedPath).toBeUndefined();
+      
+      // Restore original function
+      fs.mkdirSync = originalMkdirSync;
     });
 
     test('should handle invalid path for directory creation', async () => {
-      process.env.WORKING_DIR_PREFIX = '/tmp/test-sandbox';
+      const testPrefix = createRandomTestDir();
+      process.env.WORKING_DIR_PREFIX = testPrefix;
       
       delete require.cache[require.resolve('./index.js')];
       const { validateAndCreatePath } = require('./index.js');
@@ -331,10 +355,15 @@ describe('Working Directory Prefix and Path Security', () => {
     test('should clean up test directories after tests', async () => {
       const fs = require('fs');
       
-      // Clean up test directories
-      if (fs.existsSync('/tmp/test-sandbox')) {
-        fs.rmSync('/tmp/test-sandbox', { recursive: true, force: true });
-      }
+      // Clean up test directories - remove all test-sandbox-* directories
+      const path = require('path');
+      const testDirs = fs.readdirSync('/tmp').filter(dir => dir.startsWith('test-sandbox-'));
+      testDirs.forEach(dir => {
+        const fullPath = path.join('/tmp', dir);
+        if (fs.existsSync(fullPath)) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+        }
+      });
       
       expect(true).toBe(true); // Cleanup successful
     });
