@@ -14,6 +14,34 @@ function getWorkingDirPrefix() {
 }
 
 /**
+ * Gets the Claude CLI arguments from environment variable or returns default
+ * @returns {string[]} - Array of arguments to pass to Claude CLI
+ */
+function getClaudeCliArgs() {
+  const customArgs = process.env.CLAUDE_CLI_ARGS;
+  if (customArgs && customArgs.trim().length > 0) {
+    // Parse the custom arguments string into array
+    // Handle both space-separated and JSON array formats
+    try {
+      // Try to parse as JSON array first
+      const parsed = JSON.parse(customArgs);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      // If JSON is valid but not an array, fall through to space-separated parsing
+    } catch (e) {
+      // If JSON parsing fails, continue to space-separated parsing
+    }
+    
+    // Parse as space-separated arguments
+    return customArgs.trim().split(/\s+/).filter(arg => arg.length > 0);
+  }
+  
+  // Default arguments
+  return ['--dangerously-skip-permissions'];
+}
+
+/**
  * Validates and normalizes a user-provided working directory path
  * Applies security checks and prefix configuration
  * @param {string} userPath - The path provided by the user
@@ -499,7 +527,9 @@ async function startClaudeCodeSession(ws, workingDir) {
     });
     
     // Spawn Claude Code CLI directly with proper terminal settings
-    const ptyProcess = spawn('claude', ['--dangerously-skip-permissions'], {
+    const claudeArgs = getClaudeCliArgs();
+    console.log(`Starting Claude with arguments: ${JSON.stringify(claudeArgs)}`);
+    const ptyProcess = spawn('claude', claudeArgs, {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
@@ -792,6 +822,7 @@ app.get('*', (req, res) => {
 module.exports = {
   validateAndNormalizePath,
   validateAndCreatePath,
+  getClaudeCliArgs,
   app,
   server,
   wss: null // Will be set after server creation

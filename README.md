@@ -48,6 +48,12 @@ A web browser interface for Claude Code CLI that lets you interact with Claude t
    ```bash
    npm run server
    ```
+   
+   *Optional: Configure Claude CLI arguments*
+   ```bash
+   # Example: Run Claude with verbose output
+   CLAUDE_CLI_ARGS="--verbose --no-color" npm run server
+   ```
 
 5. **Open your browser**
    - Go to `http://localhost:3001`

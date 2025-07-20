@@ -180,6 +180,7 @@ claude-code-web-ui/
 PORT=3001                              # Server port (default: 3001)
 NODE_ENV=production                   # Environment mode
 WORKING_DIR_PREFIX=/path/to/sandbox   # Working directory prefix for security
+CLAUDE_CLI_ARGS="--verbose --no-color" # Custom arguments for Claude CLI
 
 # Client configuration  
 REACT_APP_WS_URL=ws://localhost:3001  # WebSocket URL
@@ -228,6 +229,46 @@ WORKING_DIR_PREFIX=/home/ubuntu
 # No prefix (default - allows any valid path)
 # WORKING_DIR_PREFIX=
 ```
+
+### 🔧 Claude CLI Arguments Configuration
+
+The `CLAUDE_CLI_ARGS` environment variable allows you to customize the arguments passed to the Claude Code CLI process when starting sessions:
+
+```bash
+# Default behavior (if not set)
+# CLAUDE_CLI_ARGS=""  # Uses: --dangerously-skip-permissions
+
+# Custom arguments using space-separated format
+export CLAUDE_CLI_ARGS="--verbose --no-color --debug"
+
+# Custom arguments using JSON array format (for complex arguments)
+export CLAUDE_CLI_ARGS='["--config", "/path/to/config.json", "--verbose"]'
+
+# Start the server
+npm run server
+```
+
+**Supported formats:**
+- **Space-separated**: `"--verbose --no-color --debug"`
+- **JSON array**: `'["--config", "/path/to/config.json", "--verbose"]'`
+- **Empty**: Uses default `--dangerously-skip-permissions`
+
+**Example configurations:**
+```bash
+# Verbose output with no colors
+CLAUDE_CLI_ARGS="--verbose --no-color"
+
+# Debug mode with custom config
+CLAUDE_CLI_ARGS='["--debug", "--config", "/etc/claude/config.json"]'
+
+# Minimal permissions (remove yolo mode)
+CLAUDE_CLI_ARGS=""  # This will use default: --dangerously-skip-permissions
+
+# Custom timeout and no interactive mode
+CLAUDE_CLI_ARGS="--timeout=60 --no-interactive --verbose"
+```
+
+**Security note**: Only use trusted arguments as they directly control the Claude CLI execution environment.
 
 ## 🚨 Development Troubleshooting
 
