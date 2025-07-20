@@ -499,7 +499,7 @@ async function startClaudeCodeSession(ws, workingDir) {
     });
     
     // Spawn Claude Code CLI directly with proper terminal settings
-    const ptyProcess = spawn('claude', [], {
+    const ptyProcess = spawn('claude', ['--dangerously-skip-permissions'], {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
