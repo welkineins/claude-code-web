@@ -8,6 +8,160 @@ const { spawn } = require('node-pty');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Working directory prefix configuration (read dynamically for testing)
+function getWorkingDirPrefix() {
+  return process.env.WORKING_DIR_PREFIX || '';
+}
+
+/**
+ * Validates and normalizes a user-provided working directory path
+ * Applies security checks and prefix configuration
+ * @param {string} userPath - The path provided by the user
+ * @returns {Object} - { isValid: boolean, normalizedPath?: string, error?: string }
+ */
+function validateAndNormalizePath(userPath) {
+  // Check for empty or whitespace-only paths
+  if (!userPath || typeof userPath !== 'string' || userPath.trim().length === 0) {
+    return {
+      isValid: false,
+      error: 'Path cannot be empty'
+    };
+  }
+
+  const trimmedPath = userPath.trim();
+
+  // Check for null bytes
+  if (trimmedPath.includes('\x00') || trimmedPath.includes('\0')) {
+    return {
+      isValid: false,
+      error: 'Invalid characters in path'
+    };
+  }
+
+  // Check path length (Unix path limit is typically 4096)
+  if (trimmedPath.length > 4096) {
+    return {
+      isValid: false,
+      error: 'Path too long'
+    };
+  }
+
+  // Check for parent directory traversal attempts
+  if (trimmedPath.includes('../')) {
+    return {
+      isValid: false,
+      error: 'Parent directory traversal not allowed'
+    };
+  }
+
+  // Check for current directory references
+  if (trimmedPath.includes('./')) {
+    return {
+      isValid: false,
+      error: 'Current directory references not allowed'
+    };
+  }
+
+  // Check for multiple consecutive slashes
+  if (trimmedPath.includes('//')) {
+    return {
+      isValid: false,
+      error: 'Invalid path format'
+    };
+  }
+
+  // Normalize the path and apply prefix
+  let normalizedPath = trimmedPath;
+  
+  // If prefix is configured and not empty, apply it
+  const workingDirPrefix = getWorkingDirPrefix();
+  if (workingDirPrefix && workingDirPrefix.trim().length > 0) {
+    const prefix = workingDirPrefix.trim();
+    
+    // Remove leading slash from user path if present when adding to prefix
+    if (normalizedPath.startsWith('/')) {
+      normalizedPath = normalizedPath.substring(1);
+    }
+    
+    // Ensure prefix ends with slash if it doesn't already
+    const prefixWithSlash = prefix.endsWith('/') ? prefix : prefix + '/';
+    normalizedPath = prefixWithSlash + normalizedPath;
+  }
+
+  // Resolve to absolute path to handle any remaining normalization
+  try {
+    normalizedPath = path.resolve(normalizedPath);
+  } catch (error) {
+    return {
+      isValid: false,
+      error: 'Invalid path format'
+    };
+  }
+
+  return {
+    isValid: true,
+    normalizedPath: normalizedPath,
+    displayPath: normalizedPath,
+    userInput: userPath.trim(),
+    prefixApplied: !!(workingDirPrefix && workingDirPrefix.trim().length > 0),
+    prefix: workingDirPrefix && workingDirPrefix.trim().length > 0 ? workingDirPrefix.trim() : undefined
+  };
+}
+
+/**
+ * Validates, normalizes, and creates a working directory path if it doesn't exist
+ * @param {string} userPath - The path provided by the user
+ * @returns {Promise<Object>} - { isValid: boolean, normalizedPath?: string, directoryCreated?: boolean, error?: string }
+ */
+async function validateAndCreatePath(userPath) {
+  // First validate the path
+  const validation = validateAndNormalizePath(userPath);
+  if (!validation.isValid) {
+    return {
+      ...validation,
+      directoryCreated: false
+    };
+  }
+
+  const { normalizedPath } = validation;
+
+  try {
+    // Check if directory exists
+    const fs = require('fs');
+    let directoryCreated = false;
+
+    if (!fs.existsSync(normalizedPath)) {
+      // Create directory recursively
+      fs.mkdirSync(normalizedPath, { recursive: true });
+      directoryCreated = true;
+      console.log(`Created directory: ${normalizedPath}`);
+    }
+
+    return {
+      ...validation,
+      directoryCreated: directoryCreated
+    };
+  } catch (error) {
+    console.error(`Failed to create directory ${normalizedPath}:`, error);
+    
+    // Check for common error types
+    let errorMessage = 'Failed to create directory';
+    if (error.code === 'EACCES' || error.code === 'EPERM') {
+      errorMessage = 'Directory creation failed: permission denied';
+    } else if (error.code === 'ENOENT') {
+      errorMessage = 'Directory creation failed: invalid path';
+    } else if (error.code === 'ENOTDIR') {
+      errorMessage = 'Directory creation failed: parent is not a directory';
+    }
+
+    return {
+      isValid: false,
+      error: errorMessage,
+      directoryCreated: false
+    };
+  }
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -95,106 +249,118 @@ app.delete('/api/sessions/:sessionId', (req, res) => {
 const buildPath = path.join(__dirname, '../client/build');
 app.use(express.static(buildPath));
 
-const server = app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// Only start server if this module is run directly (not imported for testing)
+let server = null;
+let wss = null;
 
-const wss = new WebSocket.Server({ server });
+// Setup WebSocket handlers (called when server starts)
+function setupWebSocketHandlers() {
+  if (!wss) return;
+  
+  wss.on('connection', (ws) => {
+    console.log('New WebSocket connection established');
+    
+    // Add connection tracking
+    ws.isAlive = true;
+    ws.lastSeen = Date.now();
+    
+    // Initialize session tracking for this WebSocket
+    wsSessions.set(ws, []);
+    
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message);
+        console.log('Received WebSocket message:', data.type, data);
+        
+        // Update last seen time
+        ws.lastSeen = Date.now();
+        ws.isAlive = true;
+        
+        switch (data.type) {
+          case 'start-session':
+            startClaudeCodeSession(ws, data.path);
+            break;
+          case 'reconnect-session':
+            reconnectToSession(ws, data.sessionId);
+            break;
+          case 'input':
+            console.log(`🔴 INPUT EVENT: sessionId=${data.sessionId}, input=${JSON.stringify(data.input)}`);
+            handleInput(ws, data.input, data.sessionId);
+            break;
+          case 'resize':
+            console.log(`🔴 RESIZE EVENT: sessionId=${data.sessionId}, cols=${data.cols}, rows=${data.rows}`);
+            handleResize(ws, data.cols, data.rows, data.sessionId);
+            break;
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+          default:
+            console.warn('Unknown message type:', data.type);
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
+        ws.send(JSON.stringify({ type: 'error', message: error.message }));
+      }
+    });
+    
+    ws.on('close', () => {
+      console.log('WebSocket connection closed');
+      ws.isAlive = false;
+      
+      // Start 3-day timeout for reconnection
+      setTimeout(() => {
+        if (!ws.isAlive) {
+          console.log('WebSocket did not reconnect within 3 days, cleaning up session');
+          cleanupSession(ws);
+        }
+      }, 259200000); // 3 days = 3 * 24 * 60 * 60 * 1000 ms
+    });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      ws.isAlive = false;
+    });
+  });
+
+  // Periodic cleanup of stale sessions
+  setInterval(() => {
+    const now = Date.now();
+    const staleThreshold = 259200000; // 3 days = 3 * 24 * 60 * 60 * 1000 ms
+    
+    // Check all sessions for staleness
+    allSessions.forEach((session, sessionId) => {
+      if (session.ptyProcess && !session.ptyProcess.killed) {
+        // Check if any connected WebSocket has seen this session recently
+        let hasActiveConnection = false;
+        
+        wsSessions.forEach((sessionIds, ws) => {
+          if (sessionIds.includes(sessionId) && ws.lastSeen && (now - ws.lastSeen) <= staleThreshold) {
+            hasActiveConnection = true;
+          }
+        });
+        
+        // If no active connections for this session, clean it up
+        if (!hasActiveConnection) {
+          console.log(`Session ${sessionId} is stale (no active connections), cleaning up`);
+          cleanupSessionById(sessionId);
+        }
+      }
+    });
+  }, 10000); // Check every 10 seconds
+}
+
+if (require.main === module) {
+  server = app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+
+  wss = new WebSocket.Server({ server });
+  setupWebSocketHandlers();
+}
 
 // Store sessions by sessionId instead of by WebSocket connection
 const allSessions = new Map(); // sessionId -> session data
 const wsSessions = new Map(); // ws -> array of sessionIds
-
-wss.on('connection', (ws) => {
-  console.log('New WebSocket connection established');
-  
-  // Add connection tracking
-  ws.isAlive = true;
-  ws.lastSeen = Date.now();
-  
-  // Initialize session tracking for this WebSocket
-  wsSessions.set(ws, []);
-  
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message);
-      console.log('Received WebSocket message:', data.type, data);
-      
-      // Update last seen time
-      ws.lastSeen = Date.now();
-      ws.isAlive = true;
-      
-      switch (data.type) {
-        case 'start-session':
-          startClaudeCodeSession(ws, data.path);
-          break;
-        case 'reconnect-session':
-          reconnectToSession(ws, data.sessionId);
-          break;
-        case 'input':
-          console.log(`🔴 INPUT EVENT: sessionId=${data.sessionId}, input=${JSON.stringify(data.input)}`);
-          handleInput(ws, data.input, data.sessionId);
-          break;
-        case 'resize':
-          console.log(`🔴 RESIZE EVENT: sessionId=${data.sessionId}, cols=${data.cols}, rows=${data.rows}`);
-          handleResize(ws, data.cols, data.rows, data.sessionId);
-          break;
-        case 'ping':
-          ws.send(JSON.stringify({ type: 'pong' }));
-          break;
-        default:
-          console.warn('Unknown message type:', data.type);
-      }
-    } catch (error) {
-      console.error('Error processing message:', error);
-      ws.send(JSON.stringify({ type: 'error', message: error.message }));
-    }
-  });
-  
-  ws.on('close', () => {
-    console.log('WebSocket connection closed');
-    ws.isAlive = false;
-    
-    // Start 3-day timeout for reconnection
-    setTimeout(() => {
-      if (!ws.isAlive) {
-        console.log('WebSocket did not reconnect within 3 days, cleaning up session');
-        cleanupSession(ws);
-      }
-    }, 259200000); // 3 days = 3 * 24 * 60 * 60 * 1000 ms
-  });
-  
-  ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
-    ws.isAlive = false;
-  });
-});
-
-// Periodic cleanup of stale sessions
-setInterval(() => {
-  const now = Date.now();
-  const staleThreshold = 259200000; // 3 days = 3 * 24 * 60 * 60 * 1000 ms
-  
-  // Check all sessions for staleness
-  allSessions.forEach((session, sessionId) => {
-    if (session.ptyProcess && !session.ptyProcess.killed) {
-      // Check if any connected WebSocket has seen this session recently
-      let hasActiveConnection = false;
-      
-      wsSessions.forEach((sessionIds, ws) => {
-        if (sessionIds.includes(sessionId) && ws.lastSeen && (now - ws.lastSeen) <= staleThreshold) {
-          hasActiveConnection = true;
-        }
-      });
-      
-      // If no active connections for this session, clean it up
-      if (!hasActiveConnection) {
-        console.log(`Session ${sessionId} is stale (no active connections), cleaning up`);
-        cleanupSessionById(sessionId);
-      }
-    }
-  });
-}, 10000); // Check every 10 seconds
 
 function reconnectToSession(ws, sessionId) {
   try {
@@ -284,13 +450,39 @@ function reconnectToSession(ws, sessionId) {
   }
 }
 
-function startClaudeCodeSession(ws, workingDir) {
+async function startClaudeCodeSession(ws, workingDir) {
   try {
     const sessionId = generateSessionId();
-    const cwd = workingDir || process.cwd();
+    
+    // Validate, normalize and create the working directory path
+    const pathValidation = await validateAndCreatePath(workingDir || process.cwd());
+    if (!pathValidation.isValid) {
+      console.error(`Invalid working directory path: ${pathValidation.error}`);
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        message: `Invalid working directory: ${pathValidation.error}` 
+      }));
+      return;
+    }
+    
+    const cwd = pathValidation.normalizedPath;
     const createdAt = new Date().toISOString();
     
+    // Send path information to client for display
+    ws.send(JSON.stringify({ 
+      type: 'path-info', 
+      userInput: pathValidation.userInput,
+      normalizedPath: pathValidation.normalizedPath,
+      displayPath: pathValidation.displayPath,
+      prefixApplied: pathValidation.prefixApplied,
+      prefix: pathValidation.prefix,
+      directoryCreated: pathValidation.directoryCreated
+    }));
+    
     console.log(`Starting Claude Code session ${sessionId} in directory: ${cwd}`);
+    if (pathValidation.directoryCreated) {
+      console.log(`Created directory: ${cwd}`);
+    }
     
     // Check if claude command exists first
     const { exec } = require('child_process');
@@ -595,3 +787,12 @@ app.get('*', (req, res) => {
     res.status(404).send('Build not found. Please run: npm run build');
   }
 });
+
+// Export functions for testing
+module.exports = {
+  validateAndNormalizePath,
+  validateAndCreatePath,
+  app,
+  server,
+  wss: null // Will be set after server creation
+};

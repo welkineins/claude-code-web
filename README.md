@@ -40,6 +40,13 @@ A modern web interface for Claude Code CLI with real-time bi-directional streami
 - Memory leak prevention
 - Process lifecycle management
 
+### 🔒 **Security Features**
+- Working directory prefix enforcement
+- Path traversal attack prevention
+- Input validation and sanitization
+- Null byte injection protection
+- Automatic directory creation with security validation
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -231,8 +238,9 @@ claude-code-web-ui/
 
 ```bash
 # Server configuration
-PORT=3001                    # Server port (default: 3001)
-NODE_ENV=production         # Environment mode
+PORT=3001                              # Server port (default: 3001)
+NODE_ENV=production                   # Environment mode
+WORKING_DIR_PREFIX=/path/to/sandbox   # Working directory prefix for security
 
 # Client configuration  
 REACT_APP_WS_URL=ws://localhost:3001  # WebSocket URL
@@ -244,6 +252,43 @@ REACT_APP_WS_URL=ws://localhost:3001  # WebSocket URL
 - **Session Timeout**: 2 minutes for inactive sessions
 - **Buffer Limit**: 50KB per session terminal buffer
 - **Cleanup Interval**: 10 seconds for session maintenance
+
+### 🔒 Working Directory Prefix (Security Feature)
+
+The `WORKING_DIR_PREFIX` environment variable provides a security mechanism to limit where Claude Code sessions can be created:
+
+```bash
+# Example: Restrict all sessions to run within /tmp/sandbox
+export WORKING_DIR_PREFIX=/tmp/sandbox
+
+# Start the server
+npm run server
+```
+
+**How it works:**
+- When a user enters `/Users/john/project`, the actual working directory becomes `/tmp/sandbox/Users/john/project`
+- When a user enters `project`, the actual working directory becomes `/tmp/sandbox/project`
+- All path traversal attempts (`../`, `./`) are automatically rejected for security
+- **Automatic Directory Creation**: If the directory doesn't exist, it will be created recursively
+- **Path Display**: The web UI shows both the user input and the actual normalized path when a prefix is applied
+
+**Security protections:**
+- **Path traversal prevention**: Blocks `../` and `./` sequences
+- **Null byte protection**: Rejects paths containing null bytes
+- **Path validation**: Validates path format and length
+- **Prefix enforcement**: All paths are prefixed with the configured directory
+
+**Example configurations:**
+```bash
+# Sandbox all sessions in /tmp
+WORKING_DIR_PREFIX=/tmp
+
+# Restrict to user's home directory  
+WORKING_DIR_PREFIX=/home/ubuntu
+
+# No prefix (default - allows any valid path)
+# WORKING_DIR_PREFIX=
+```
 
 ## 🚨 Troubleshooting
 

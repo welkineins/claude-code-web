@@ -8,6 +8,7 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   const [currentPath, setCurrentPath] = useState('');
+  const [showDirectoryCreated, setShowDirectoryCreated] = useState(false);
   const [messages, setMessages] = useState([]);
   const [showSessionList, setShowSessionList] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState(null);
@@ -76,6 +77,21 @@ function App() {
           return; // Don't add session-started to messages array
         }
         
+        // Handle path info message
+        if (data.type === 'path-info') {
+          console.log('Received path info:', data);
+          setCurrentPath(data.normalizedPath);
+          // Only show directory created indicator if directory was actually created
+          if (data.directoryCreated) {
+            setShowDirectoryCreated(true);
+            // Auto-hide after animation completes
+            setTimeout(() => {
+              setShowDirectoryCreated(false);
+            }, 4000); // Match the CSS animation duration
+          }
+          return; // Don't add path-info to messages array
+        }
+        
         // Handle buffer restore for reconnection
         if (data.type === 'buffer-restore') {
           console.log('Restoring terminal buffer for session:', data.sessionId);
@@ -113,6 +129,7 @@ function App() {
       // Clear everything for new session
       setCurrentPath(path);
       setCurrentSessionId(null); // This will be set when session-started is received
+      setShowDirectoryCreated(false); // Clear directory created indicator
       setMessages([]);
       
       const message = {
@@ -268,7 +285,15 @@ function App() {
         ) : (
           <div className="terminal-container">
             <div className="session-info">
-              Session {currentSessionId || 'active'} in: {currentPath || 'current directory'}
+              <div className="session-id">Session {currentSessionId || 'active'}</div>
+              <div className="session-path">
+                Working Directory: <strong>{currentPath || 'current directory'}</strong>
+                {showDirectoryCreated && (
+                  <div className="path-details">
+                    <span className="path-detail created">✅ Directory Created</span>
+                  </div>
+                )}
+              </div>
             </div>
             <Terminal
               messages={messages}

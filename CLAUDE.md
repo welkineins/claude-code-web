@@ -46,6 +46,37 @@ cd client && npm test       # Client-side tests
 npm run lint
 ```
 
+## Security Configuration
+
+### Working Directory Prefix
+
+For security, you can configure a working directory prefix to limit where sessions can be created:
+
+```bash
+# Set working directory prefix (recommended for production)
+export WORKING_DIR_PREFIX=/tmp/sandbox
+
+# All user paths will be prefixed with this directory
+# User input: "/Users/john/project" → Actual: "/tmp/sandbox/Users/john/project"
+# User input: "project" → Actual: "/tmp/sandbox/project"
+```
+
+**Security Features:**
+- Path traversal prevention (`../`, `./` blocked)
+- Null byte injection protection
+- Path length validation
+- Input sanitization
+- Automatic directory creation with security validation
+
+**Testing the Security Features:**
+```bash
+# Run security-specific tests
+npm test -- --testPathPattern="path-security"
+
+# Test with different prefix configurations
+WORKING_DIR_PREFIX=/tmp npm test -- --testPathPattern="path-security"
+```
+
 ## Development Workflow
 
 **Standard Development Process:**
@@ -122,20 +153,24 @@ npm run lint
 
 #### Data Flow
 1. User enters path and starts session
-2. Backend spawns Claude Code CLI with node-pty
-3. PTY output streams to WebSocket → Frontend terminal (16ms buffering)
-4. User input from terminal → WebSocket → PTY process (with session validation)
-5. Terminal resize events propagated to PTY
-6. Session disconnection triggers 2-minute cleanup timer
+2. Backend validates and normalizes path (applying prefix if configured)
+3. Backend creates directory recursively if it doesn't exist
+4. Backend sends path information to frontend for display
+5. Backend spawns Claude Code CLI with node-pty in the normalized directory
+6. PTY output streams to WebSocket → Frontend terminal (16ms buffering)
+7. User input from terminal → WebSocket → PTY process (with session validation)
+8. Terminal resize events propagated to PTY
+9. Session disconnection triggers 2-minute cleanup timer
 
 ## Testing Strategy
 
 **Comprehensive Test Coverage (100+ tests)**:
 
-- **Server Tests**: `npm test` (30 tests)
+- **Server Tests**: `npm test` (54 tests)
   - Basic session management (`server/basic-session.test.js`) - 17 tests
   - Server integration tests (`server/index.test.js`) - 13 tests
-  - API endpoints, session lifecycle, and cleanup
+  - Path security and validation (`server/path-security.test.js`) - 24 tests
+  - API endpoints, session lifecycle, security validation, and directory creation
 
 - **Client Tests**: `cd client && npm test` (70+ tests)
   - App component WebSocket logic (`src/App.test.js`)
@@ -147,12 +182,14 @@ npm run lint
 - Terminal input functionality after session reconnection
 - Buffer restoration and handler setup
 - Multi-session switching and management
+- Path validation and directory creation with security checks
+- Frontend display of normalized paths and prefix information
 
 **Before Every Commit**:
 ```bash
 # MANDATORY: Complete validation cycle
 npm run build              # Must succeed (build validation + server restart)
-npm test                   # Must pass (30 server tests)
+npm test                   # Must pass (54 server tests)
 cd client && npm test       # Must pass (70+ client tests)
 npm run lint              # Must pass (code quality)
 ```
@@ -222,7 +259,7 @@ npm test && cd client && npm test
 ```bash
 # 4. CRITICAL: Always run full build and test cycle before committing
 npm run build              # Build must succeed (server auto-restarts)
-npm test                   # Server tests must pass (30 tests)
+npm test                   # Server tests must pass (54 tests)
 cd client && npm test      # Client tests must pass (70+ tests)
 npm run lint              # Linting must pass
 
